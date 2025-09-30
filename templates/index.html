@@ -98,7 +98,6 @@
                                  <tbody>
                                      {% for pengeluaran in pengeluaran_list %}
                                      <tr>
-                                         <!-- PERBAIKAN: Menggunakan pengeluaran.Tanggal (yang sudah string) -->
                                          <td>{{ pengeluaran.Tanggal }}</td> 
                                          <td>{{ pengeluaran.Metode.upper() }}</td>
                                          <td>Rp {{ "{:,.0f}".format(pengeluaran.Nominal) }}</td>

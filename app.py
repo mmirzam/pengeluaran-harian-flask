@@ -21,14 +21,20 @@ def get_gspread_client():
     
     if json_creds:
         try:
-            creds = json.loads(json_creds)
+            # Mengambil kredensial dari environment variable (untuk deployment seperti Render)
+            # PERBAIKAN: Membersihkan string dari spasi, tanda kutip luar, dan memperbaiki double-escaped newlines
+            cleaned_creds = json_creds.strip().replace('\\\\n', '\\n') 
+            
+            creds = json.loads(cleaned_creds)
             gc = gspread.service_account_from_dict(creds)
         except Exception as e:
+            # Jika JSON di ENV tidak valid (kemungkinan besar karena format JWT Signature salah)
             print(f"ERROR: Failed to load JSON from ENV: {e}")
+            flash(f'🚨 Koneksi Google Sheets GAGAL! (Gagal load kunci dari ENV: {e})', 'danger')
             raise 
     else:
         try:
-            # Menggunakan json.load dan service_account_from_dict lebih stabil
+            # Menggunakan file lokal (untuk local development)
             with open(SERVICE_ACCOUNT_FILE, 'r') as f:
                 creds = json.load(f)
             gc = gspread.service_account_from_dict(creds)
@@ -62,8 +68,10 @@ def get_data_from_sheet():
         
         return df.sort_values(by='Tanggal', ascending=False)
     except Exception as e:
+        # Menampilkan error koneksi ke log dan flash message
         print(f"ERROR: Failed to connect/read Google Sheets: {e}")
-        flash(f'🚨 Koneksi Google Sheets GAGAL! ({e})', 'danger')
+        # Pesan ini akan otomatis muncul di Canvas
+        flash(f'🚨 Koneksi Google Sheets GAGAL! ({e})', 'danger') 
         return pd.DataFrame() 
 
 # --- FUNGSI CHART (Dengan Perbaikan int64) ---
@@ -104,6 +112,7 @@ def get_monthly_data(df):
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
+    # Ambil data sebelum POST untuk memastikan kita punya df jika terjadi error
     df = get_data_from_sheet()
 
     if request.method == 'POST':
@@ -139,7 +148,7 @@ def index():
             
         except Exception as e:
             print(f"Error saat menyimpan data: {e}")
-            flash('❌ Gagal menyimpan data. Cek input dan log server.', 'danger')
+            flash(f'❌ Gagal menyimpan data: {e}', 'danger')
             return redirect(url_for('index'))
 
     # Siapkan data untuk chart dan display
