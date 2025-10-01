@@ -40,7 +40,10 @@
                     
                     <div class="col-12">
                         <label for="nominal" class="form-label">Nominal (Rp)</label>
-                        <input type="number" class="form-control form-control-lg" id="nominal" name="nominal" min="1" placeholder="Masukkan angka pengeluaran..." required>
+                        <input type="number" class="form-control form-control-lg" id="nominal" name="nominal" 
+                               min="{{ batas_nominal_min }}" 
+                               max="{{ batas_nominal_max }}" 
+                               placeholder="Masukkan angka pengeluaran (1000 - 200000)..." required>
                     </div>
 
                     <div class="col-12">
@@ -57,7 +60,10 @@
                     <div class="col-sm-6 col-12">
                         <label for="tanggal" class="form-label">Tanggal</label>
                         <input type="date" class="form-control" id="tanggal" name="tanggal"
-                                value="{{ current_date }}" required>
+                               value="{{ current_date }}" 
+                               min="{{ batas_tanggal_min }}"
+                               max="{{ batas_tanggal_max }}" 
+                               required>
                     </div>
                     
                     <div class="col-sm-6 col-12">
