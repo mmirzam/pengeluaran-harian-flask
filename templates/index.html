@@ -3,20 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Aplikasi Jajan Harian</title>
+    <title>Catatan</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+    <script src="{{ url_for('static', filename='charts.js') }}"></script>
+    
     <style>
-        /* Gaya tambahan untuk pengalaman mobile yang lebih baik */
-        .container { max-width: 600px; } /* Maksimum lebar diperkecil untuk fokus mobile */
+        .container { max-width: 600px; }
         .form-label { font-weight: 600; margin-bottom: 0.2rem; }
     </style>
 </head>
 <body>
     <div class="container mt-4 mb-5">
-        <h1 class="mb-4 text-center fs-3">Jajan Harian MMM 🚀</h1>
+        <h1 class="mb-4 text-center fs-3">Laporan MMM 🚀</h1>
 
-        <!-- START: TAMPILAN PESAN FLASH (Popup Notifikasi) -->
+        <!-- Pesan Flash -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <div class="row mb-3">
@@ -31,456 +33,45 @@
                 </div>
             {% endif %}
         {% endwith %}
-        <!-- END: POPUP NOTIFIKASI -->
 
-        <!-- START: NAVIGASI TAB UTAMA -->
-        <ul class="nav nav-pills nav-justified mb-4" id="mainTab" role="tablist">
-            <li class="nav-item" role="presentation">
-                <a class="nav-link {% if tab_active == 'pengeluaran' %}active{% endif %}" id="pengeluaran-tab" data-bs-toggle="pill" href="#pengeluaranContent" role="tab" aria-controls="pengeluaranContent" aria-selected="{% if tab_active == 'pengeluaran' %}true{% else %}false{% endif %}">
+        <!-- Navigasi -->
+        <ul class="nav nav-pills nav-justified mb-4">
+            <li class="nav-item">
+                <a class="nav-link {% if tab_active == 'pengeluaran' %}active{% endif %}"
+                   href="{{ url_for('pengeluaran_index') }}">
                     💰 Pengeluaran
                 </a>
             </li>
-            <li class="nav-item" role="presentation">
-                <a class="nav-link {% if tab_active == 'pemasukan' %}active{% endif %}" id="pemasukan-tab" data-bs-toggle="pill" href="#pemasukanContent" role="tab" aria-controls="pemasukanContent" aria-selected="{% if tab_active == 'pemasukan' %}true{% else %}false{% endif %}">
+            <li class="nav-item">
+                <a class="nav-link {% if tab_active == 'pemasukan' %}active{% endif %}"
+                   href="{{ url_for('pemasukan_index') }}">
                     📈 Pemasukan
                 </a>
             </li>
         </ul>
-        <!-- END: NAVIGASI TAB UTAMA -->
 
-        <!-- START: ISI KONTEN TAB -->
-        <div class="tab-content" id="mainTabContent">
-
-            <!-- TAB 1: PENGELUARAN (Konten Lama) -->
-            <div class="tab-pane fade {% if tab_active == 'pengeluaran' %}show active{% endif %}" id="pengeluaranContent" role="tabpanel" aria-labelledby="pengeluaran-tab">
-                
-                <!-- CARD TOTAL PENGELUARAN (Poin C) -->
-                <div class="card p-3 shadow-sm mb-4 bg-light">
-                    <h5 class="card-title fs-5 mb-3 text-center">Ringkasan Pengeluaran</h5>
-                    <div class="row text-center g-2">
-                        <div class="col-6">
-                            <p class="mb-0 text-muted small">Total Hari Ini</p>
-                            <h4 class="text-danger">Rp {{ "{:,.0f}".format(total_harian) }}</h4>
-                        </div>
-                        <div class="col-6 border-start">
-                            <p class="mb-0 text-muted small">Total Minggu Ini</p>
-                            <h4 class="text-primary">Rp {{ "{:,.0f}".format(total_mingguan) }}</h4>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card p-3 shadow-sm">
-                    <h5 class="card-title fs-5 mb-3">Input Pengeluaran Baru</h5>
-                    <form method="POST" action="/" id="expenseForm"> 
-                        <div class="row g-3">
-                            
-                            <div class="col-12">
-                                <label for="nominal_formatted" class="form-label">Nominal (Rp)</label>
-                                <input type="text" class="form-control form-control-lg nominal-input" id="nominal_formatted" 
-                                       oninput="formatNominal(this)"
-                                       placeholder="Pengeluaran (1k - 200k)..." required>
-
-                                <input type="hidden" name="nominal" id="nominal_clean" 
-                                       min="{{ batas_nominal_min }}" 
-                                       max="{{ batas_nominal_max }}">
-                            </div>
-
-                            <div class="col-12">
-                                <label class="form-label d-block">Metode Pembayaran</label>
-                                <div class="btn-group w-100" role="group">
-                                    <input type="radio" class="btn-check" name="metode" id="metodeQris" value="qris" checked>
-                                    <label class="btn btn-outline-danger" for="metodeQris">QRIS</label>
-
-                                    <input type="radio" class="btn-check" name="metode" id="metodeCash" value="cash">
-                                    <label class="btn btn-outline-danger" for="metodeCash">Cash</label>
-                                </div>
-                            </div>
-                            
-                            <div class="col-sm-6 col-12">
-                                <label for="tanggal" class="form-label">Tanggal</label>
-                                <input type="date" class="form-control" id="tanggal" name="tanggal"
-                                       value="{{ current_date }}" 
-                                       min="{{ batas_tanggal_min }}"
-                                       max="{{ batas_tanggal_max }}" 
-                                       required>
-                            </div>
-                            
-                            <div class="col-sm-6 col-12">
-                                <label for="catatan" class="form-label">Catatan (Opsional)</label>
-                                <input type="text" class="form-control" id="catatan" name="catatan" placeholder="Makan siang, bensin, dll.">
-                            </div>
-                        </div>
-                        <button type="submit" class="btn btn-success mt-4 w-100 btn-lg">✅ SIMPAN PENGELUARAN</button>
-                    </form>
-                </div>
-                
-                <div class="mt-5 text-center">
-                    <button class="btn btn-info w-100" type="button" data-bs-toggle="collapse" data-bs-target="#chartCollapse_exp" aria-expanded="false" aria-controls="chartCollapse_exp">
-                        📊 Tampilkan Analisis & Log Data Pengeluaran
-                    </button>
-                </div>
-
-                <div class="collapse mt-4" id="chartCollapse_exp">
-                       <div class="card p-3 shadow-sm">
-                         <ul class="nav nav-tabs" id="expTab" role="tablist">
-                            <li class="nav-item" role="presentation"><button class="nav-link active" id="mingguan-tab-exp" data-bs-toggle="tab" data-bs-target="#mingguan-exp" type="button" role="tab" aria-controls="mingguan-exp" aria-selected="true">Mingguan</button></li>
-                            <li class="nav-item" role="presentation"><button class="nav-link" id="bulanan-tab-exp" data-bs-toggle="tab" data-bs-target="#bulanan-exp" type="button" role="tab" aria-controls="bulanan-exp" aria-selected="false">Bulanan</button></li>
-                            <li class="nav-item" role="presentation"><button class="nav-link" id="log-tab-exp" data-bs-toggle="tab" data-bs-target="#log-exp" type="button" role="tab" aria-controls="log-exp" aria-selected="false">Log Akhir</button></li>
-                         </ul>
-
-                         <div class="tab-content border-0 p-2" id="expTabContent">
-                            <div class="tab-pane fade show active" id="mingguan-exp" role="tabpanel" aria-labelledby="mingguan-tab-exp"><canvas id="weeklyChartExp" class="mt-3"></canvas></div>
-
-                            <div class="tab-pane fade" id="bulanan-exp" role="tabpanel" aria-labelledby="bulanan-tab-exp"><canvas id="monthlyChartExp" class="mt-3"></canvas></div>
-
-                            <div class="tab-pane fade" id="log-exp" role="tabpanel" aria-labelledby="log-tab-exp">
-                                <h6 class="mt-3">10 Pengeluaran Terakhir</h6>
-                                <div class="table-responsive"> 
-                                    <table class="table table-sm table-striped">
-                                         <thead>
-                                             <tr>
-                                                 <th>Tgl</th>
-                                                 <th>Metode</th>
-                                                 <th>Nominal</th>
-                                                 <th>Catatan</th>
-                                                 <th>Aksi</th>
-                                             </tr>
-                                         </thead>
-                                         <tbody>
-                                             {% for pengeluaran in pengeluaran_list %}
-                                             <tr>
-                                                 <!-- Menggunakan string tanggal yang sudah disiapkan di backend -->
-                                                 <td>{{ pengeluaran.Tanggal | default('') }}</td> 
-                                                 <td>{{ pengeluaran.Metode.upper() }}</td>
-                                                 <td>Rp {{ "{:,.0f}".format(pengeluaran.Nominal) }}</td>
-                                                 <td>{{ pengeluaran.Catatan }}</td>
-                                                 <td>
-                                                     <form method="POST" action="/delete" onsubmit="return confirm('Yakin ingin menghapus pengeluaran ini?')">
-                                                         <input type="hidden" name="row_index" value="{{ pengeluaran.row_index }}">
-                                                         <input type="hidden" name="tab_type" value="pengeluaran">
-                                                         <button type="submit" class="btn btn-danger btn-sm p-1" title="Hapus Data">
-                                                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1h1.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
-                                                         </button>
-                                                     </form>
-                                                 </td>
-                                             </tr>
-                                             {% endfor %}
-                                         </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                         </div>
-                       </div>
-                </div>
-
-            </div>
-            <!-- END: TAB 1: PENGELUARAN -->
-
-            <!-- TAB 2: PEMASUKAN (Konten Baru) -->
-            <div class="tab-pane fade {% if tab_active == 'pemasukan' %}show active{% endif %}" id="pemasukanContent" role="tabpanel" aria-labelledby="pemasukan-tab">
-                
-                <!-- CARD TOTAL PROFIT -->
-                <div class="card p-3 shadow-sm mb-4 bg-light">
-                    <h5 class="card-title fs-5 mb-3 text-center">Ringkasan Profit (Jual - Modal)</h5>
-                    <div class="row text-center g-2">
-                        <div class="col-6">
-                            <p class="mb-0 text-muted small">Profit Hari Ini</p>
-                            <h4 class="text-success">Rp {{ "{:,.0f}".format(total_harian_profit | default(0)) }}</h4>
-                        </div>
-                        <div class="col-6 border-start">
-                            <p class="mb-0 text-muted small">Profit Minggu Ini</p>
-                            <h4 class="text-info">Rp {{ "{:,.0f}".format(total_mingguan_profit) }}</h4>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card p-3 shadow-sm">
-                    <h5 class="card-title fs-5 mb-3">Input Pemasukan Baru</h5>
-                    <form method="POST" action="/pemasukan" id="incomeForm"> 
-                        <div class="row g-3">
-                            
-                            <div class="col-sm-6 col-12">
-                                <label for="modal_formatted" class="form-label">Modal (Rp)</label>
-                                <input type="text" class="form-control nominal-input" id="modal_formatted" 
-                                       oninput="formatNominal(this)"
-                                       placeholder="Minimal 10k" required>
-                                <input type="hidden" name="modal" id="modal_clean" 
-                                       min="{{ batas_nominal_min_inc }}">
-                            </div>
-
-                            <div class="col-sm-6 col-12">
-                                <label for="jual_formatted" class="form-label">Jual (Rp)</label>
-                                <input type="text" class="form-control nominal-input" id="jual_formatted" 
-                                       oninput="formatNominal(this)"
-                                       placeholder="Minimal 10k" required>
-                                <input type="hidden" name="jual" id="jual_clean" 
-                                       min="{{ batas_nominal_min_inc }}">
-                            </div>
-
-                            <div class="col-12">
-                                <label class="form-label d-block">Via Penjualan</label>
-                                <div class="btn-group w-100" role="group">
-                                    <input type="radio" class="btn-check" name="via" id="viaMarketplace" value="marketplace" checked>
-                                    <label class="btn btn-outline-success" for="viaMarketplace">Marketplace</label>
-
-                                    <input type="radio" class="btn-check" name="via" id="viaChat" value="chat">
-                                    <label class="btn btn-outline-success" for="viaChat">Chat/Langsung</label>
-                                </div>
-                            </div>
-
-                            <div class="col-sm-6 col-12">
-                                <label for="tanggal_inc" class="form-label">Tanggal</label>
-                                <input type="date" class="form-control" id="tanggal_inc" name="tanggal"
-                                       value="{{ current_date }}" 
-                                       min="{{ batas_tanggal_min }}"
-                                       max="{{ batas_tanggal_max }}" 
-                                       required>
-                            </div>
-                            
-                            <div class="col-sm-6 col-12">
-                                <label for="catatan_inc" class="form-label">Catatan (Opsional)</label>
-                                <input type="text" class="form-control" id="catatan_inc" name="catatan" placeholder="Penjualan produk X, dll.">
-                            </div>
-                        </div>
-                        <button type="submit" class="btn btn-primary mt-4 w-100 btn-lg">💰 SIMPAN PEMASUKAN</button>
-                    </form>
-                </div>
-
-                <div class="mt-5 text-center">
-                    <button class="btn btn-info w-100" type="button" data-bs-toggle="collapse" data-bs-target="#chartCollapse_inc" aria-expanded="false" aria-controls="chartCollapse_inc">
-                        📊 Tampilkan Analisis & Log Data Pemasukan (Profit)
-                    </button>
-                </div>
-
-                <div class="collapse mt-4" id="chartCollapse_inc">
-                       <div class="card p-3 shadow-sm">
-                         <ul class="nav nav-tabs" id="incTab" role="tablist">
-                            <li class="nav-item" role="presentation"><button class="nav-link active" id="mingguan-tab-inc" data-bs-toggle="tab" data-bs-target="#mingguan-inc" type="button" role="tab" aria-controls="mingguan-inc" aria-selected="true">Mingguan</button></li>
-                            <li class="nav-item" role="presentation"><button class="nav-link" id="bulanan-tab-inc" data-bs-toggle="tab" data-bs-target="#bulanan-inc" type="button" role="tab" aria-controls="bulanan-inc" aria-selected="false">Bulanan</button></li>
-                            <li class="nav-item" role="presentation"><button class="nav-link" id="log-tab-inc" data-bs-toggle="tab" data-bs-target="#log-inc" type="button" role="tab" aria-controls="log-inc" aria-selected="false">Log Akhir</button></li>
-                         </ul>
-
-                         <div class="tab-content border-0 p-2" id="incTabContent">
-                            <div class="tab-pane fade show active" id="mingguan-inc" role="tabpanel" aria-labelledby="mingguan-tab-inc"><canvas id="weeklyChartInc" class="mt-3"></canvas></div>
-
-                            <div class="tab-pane fade" id="bulanan-inc" role="tabpanel" aria-labelledby="bulanan-tab-inc"><canvas id="monthlyChartInc" class="mt-3"></canvas></div>
-
-                            <div class="tab-pane fade" id="log-inc" role="tabpanel" aria-labelledby="log-tab-inc">
-                                <h6 class="mt-3">10 Pemasukan Terakhir</h6>
-                                <div class="table-responsive"> 
-                                    <table class="table table-sm table-striped">
-                                         <thead>
-                                             <tr>
-                                                 <th>Tgl</th>
-                                                 <th>Profit</th>
-                                                 <th>Modal</th>
-                                                 <th>Jual</th>
-                                                 <th>Via</th>
-                                                 <th>Catatan</th>
-                                                 <th>Aksi</th>
-                                             </tr>
-                                         </thead>
-                                         <tbody>
-                                             {% for pemasukan in pemasukan_list %}
-                                             <tr>
-                                                 <!-- Menggunakan string tanggal yang sudah disiapkan di backend -->
-                                                 <td>{{ pemasukan.Tanggal | default('') }}</td> 
-                                                 <td class="text-success fw-bold">Rp {{ "{:,.0f}".format(pemasukan.Profit) }}</td>
-                                                 <td>Rp {{ "{:,.0f}".format(pemasukan.Modal) }}</td>
-                                                 <td>Rp {{ "{:,.0f}".format(pemasukan.Jual) }}</td>
-                                                 <td>{{ pemasukan.Via.upper() }}</td>
-                                                 <td>{{ pemasukan.Catatan }}</td>
-                                                 <td>
-                                                     <form method="POST" action="/delete" onsubmit="return confirm('Yakin ingin menghapus pemasukan ini?')">
-                                                         <input type="hidden" name="row_index" value="{{ pemasukan.row_index }}">
-                                                         <input type="hidden" name="tab_type" value="pemasukan">
-                                                         <button type="submit" class="btn btn-danger btn-sm p-1" title="Hapus Data">
-                                                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1h1.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
-                                                         </button>
-                                                     </form>
-                                                 </td>
-                                             </tr>
-                                             {% endfor %}
-                                         </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                         </div>
-                       </div>
-                </div>
-
-            </div>
-            <!-- END: TAB 2: PEMASUKAN -->
-
-        </div>
-        <!-- END: ISI KONTEN TAB -->
-
+        <!-- Konten -->
+        {% if tab_active == 'pengeluaran' %}
+            {% include 'pengeluaran_content.html' %}
+        {% elif tab_active == 'pemasukan' %}
+            {% include 'pemasukan_content.html' %}
+        {% endif %}
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
+    <!-- Variabel dari Flask supaya bisa dipakai charts.js -->
     <script>
-        // --- DATA DARI FLASK ---
-        const weeklyLabelsExp = {{ chart_labels_mingguan | tojson }};
-        const weeklyDataExp = {{ chart_data_mingguan | tojson }};
-        const monthlyLabelsExp = {{ chart_labels_bulanan | tojson }};
-        const monthlyDataExp = {{ chart_data_bulanan | tojson }};
-        
-        const weeklyLabelsInc = {{ chart_labels_mingguan_inc | tojson }};
-        const weeklyDataInc = {{ chart_data_mingguan_inc | tojson }};
-        const monthlyLabelsInc = {{ chart_labels_bulanan_inc | tojson }};
-        const monthlyDataInc = {{ chart_data_bulanan_inc | tojson }};
-        
-        let weeklyChartExpInstance = null;
-        let monthlyChartExpInstance = null;
-        let weeklyChartIncInstance = null;
-        let monthlyChartIncInstance = null;
-        
-        // --- FUNGSI SEPARATOR NOMINAL ---
-        
-        function formatNominal(input) {
-            // 1. Ambil nilai, hapus semua karakter non-digit
-            let value = input.value.replace(/\D/g, ''); 
-            
-            // 2. Tentukan input hidden terkait untuk mendapatkan batas minimal
-            let hiddenInputId;
-            if (input.id.includes('nominal')) {
-                hiddenInputId = 'nominal_clean';
-            } else if (input.id.includes('modal')) {
-                hiddenInputId = 'modal_clean';
-            } else if (input.id.includes('jual')) {
-                hiddenInputId = 'jual_clean';
-            }
+        window.weeklyLabelsExp = {{ chart_labels_mingguan | tojson }};
+        window.weeklyDataExp = {{ chart_data_mingguan | tojson }};
+        window.monthlyLabelsExp = {{ chart_labels_bulanan | tojson }};
+        window.monthlyDataExp = {{ chart_data_bulanan | tojson }};
 
-            const hiddenInput = document.getElementById(hiddenInputId);
-            const min = parseInt(hiddenInput.min) || 0;
-            const max = parseInt(hiddenInput.max) || 200000; // Default max untuk pengeluaran
-
-            let numericValue = parseInt(value) || 0;
-
-            if (numericValue > max && hiddenInputId === 'nominal_clean') {
-                // Batasan maksimum hanya berlaku untuk Pengeluaran (nominal)
-                value = String(max);
-                numericValue = max;
-            } 
-            
-            // 3. Format dengan separator ribuan
-            let formattedValue = '';
-            if (value.length > 0) {
-                 formattedValue = numericValue.toLocaleString('id-ID');
-            }
-            
-            // 4. Update input yang terlihat (formatted) dan input tersembunyi (clean)
-            input.value = formattedValue;
-            hiddenInput.value = numericValue;
-        }
-
-        // --- VALIDASI FORM PENGELUARAN ---
-
-        document.getElementById('expenseForm').addEventListener('submit', function(event) {
-            const nominalCleanInput = document.getElementById('nominal_clean');
-            const nominalValue = parseInt(nominalCleanInput.value) || 0;
-            const min = parseInt(nominalCleanInput.min);
-            const max = parseInt(nominalCleanInput.max);
-
-            if (nominalValue < min || nominalValue > max) {
-                event.preventDefault();
-                alert(`Nominal Pengeluaran harus antara Rp ${min.toLocaleString('id-ID')} dan Rp ${max.toLocaleString('id-ID')}.`);
-            }
-        });
-
-        // --- VALIDASI FORM PEMASUKAN ---
-
-        document.getElementById('incomeForm').addEventListener('submit', function(event) {
-            const modalCleanInput = document.getElementById('modal_clean');
-            const jualCleanInput = document.getElementById('jual_clean');
-            
-            const modalValue = parseInt(modalCleanInput.value) || 0;
-            const jualValue = parseInt(jualCleanInput.value) || 0;
-            const min = parseInt(modalCleanInput.min); // Minimal 10000
-
-            if (modalValue < min || jualValue < min) {
-                event.preventDefault();
-                alert(`Nominal Modal dan Jual minimal harus Rp ${min.toLocaleString('id-ID')}.`);
-            }
-        });
-
-
-        // --- FUNGSI CHART ---
-        
-        function initializeCharts() {
-            // Chart Pengeluaran Mingguan (Bar)
-            if (!weeklyChartExpInstance && document.getElementById('weeklyChartExp')) {
-                weeklyChartExpInstance = new Chart(document.getElementById('weeklyChartExp'), {
-                    type: 'bar',
-                    data: {
-                        labels: weeklyLabelsExp,
-                        datasets: [{ label: 'Pengeluaran (Rp)', data: weeklyDataExp, backgroundColor: 'rgba(255, 99, 132, 0.6)' }]
-                    },
-                    options: { responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true } } }
-                });
-            }
-
-            // Chart Pengeluaran Bulanan (Line)
-            if (!monthlyChartExpInstance && document.getElementById('monthlyChartExp')) {
-                monthlyChartExpInstance = new Chart(document.getElementById('monthlyChartExp'), {
-                    type: 'line',
-                    data: {
-                        labels: monthlyLabelsExp,
-                        datasets: [{ label: 'Pengeluaran Bulanan (Rp)', data: monthlyDataExp, backgroundColor: 'rgba(54, 162, 235, 0.6)', tension: 0.4 }]
-                    },
-                    options: { responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true } } }
-                });
-            }
-
-            // Chart Pemasukan Mingguan (Bar - Profit)
-            if (!weeklyChartIncInstance && document.getElementById('weeklyChartInc')) {
-                weeklyChartIncInstance = new Chart(document.getElementById('weeklyChartInc'), {
-                    type: 'bar',
-                    data: {
-                        labels: weeklyLabelsInc,
-                        datasets: [{ label: 'Profit (Rp)', data: weeklyDataInc, backgroundColor: 'rgba(75, 192, 192, 0.6)' }]
-                    },
-                    options: { responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true } } }
-                });
-            }
-
-            // Chart Pemasukan Bulanan (Line - Profit)
-            if (!monthlyChartIncInstance && document.getElementById('monthlyChartInc')) {
-                monthlyChartIncInstance = new Chart(document.getElementById('monthlyChartInc'), {
-                    type: 'line',
-                    data: {
-                        labels: monthlyLabelsInc,
-                        datasets: [{ label: 'Profit Bulanan (Rp)', data: monthlyDataInc, backgroundColor: 'rgba(153, 102, 255, 0.6)', tension: 0.4 }]
-                    },
-                    options: { responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true } } }
-                });
-            }
-        }
-        
-        // DENGARKAN ACARA SAAT COLLAPSE TERBUKA
-        document.getElementById('chartCollapse_exp').addEventListener('shown.bs.collapse', function () {
-            initializeCharts();
-        });
-        document.getElementById('chartCollapse_inc').addEventListener('shown.bs.collapse', function () {
-            initializeCharts();
-        });
-
-        // Agar Chart Pemasukan terinisialisasi jika tab Pemasukan yang aktif
-        document.getElementById('pemasukan-tab').addEventListener('shown.bs.tab', function (e) {
-             // Re-initialize charts when switching tabs to ensure they render correctly
-             initializeCharts();
-        })
-
-        // Atur tab aktif saat memuat halaman
-        document.addEventListener('DOMContentLoaded', () => {
-             const activeTab = "{{ tab_active }}";
-             const defaultTabElement = document.getElementById(activeTab + '-tab');
-             if (defaultTabElement) {
-                new bootstrap.Tab(defaultTabElement).show();
-             }
-        });
-        
+        window.weeklyLabelsInc = {{ chart_labels_mingguan_inc | tojson }};
+        window.weeklyDataInc = {{ chart_data_mingguan_inc | tojson }};
+        window.monthlyLabelsInc = {{ chart_labels_bulanan_inc | tojson }};
+        window.monthlyDataInc = {{ chart_data_bulanan_inc | tojson }};
     </script>
+    <script src="{{ url_for('static', filename='charts.js') }}"></script>
 </body>
 </html>

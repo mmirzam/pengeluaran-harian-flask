@@ -1,0 +1,118 @@
+<!-- RINGKASAN PROFIT -->
+<div class="card p-3 shadow-sm mb-4 bg-light">
+    <h5 class="card-title fs-5 mb-3 text-center">Ringkasan Profit (Jual - Modal)</h5>
+    <div class="row text-center g-2">
+        <div class="col-6">
+            <p class="mb-0 text-muted small">Profit Hari Ini</p>
+            <h4 class="text-success">Rp {{ "{:,.0f}".format(total_harian_profit | default(0)) }}</h4>
+        </div>
+        <div class="col-6 border-start">
+            <p class="mb-0 text-muted small">Profit Minggu Ini</p>
+            <h4 class="text-success">Rp {{ "{:,.0f}".format(total_mingguan_profit) }}</h4>
+        </div>
+    </div>
+</div>
+
+<!-- FORM INPUT PEMASUKAN -->
+<div class="card p-3 shadow-sm">
+    <h5 class="card-title fs-5 mb-3">Input Pemasukan Baru</h5>
+    <form method="POST" action="{{ url_for('pemasukan_index') }}" id="incomeForm">
+        <div class="row g-3">
+            <div class="col-sm-6 col-12">
+                <label class="form-label">Modal (Rp)</label>
+                <input type="text" class="form-control nominal-input" id="modal_formatted"
+                       oninput="formatNominal(this)" placeholder="Minimal 10k" required>
+                <input type="hidden" name="modal" id="modal_clean" min="{{ batas_nominal_min_inc }}">
+            </div>
+
+            <div class="col-sm-6 col-12">
+                <label class="form-label">Jual (Rp)</label>
+                <input type="text" class="form-control nominal-input" id="jual_formatted"
+                       oninput="formatNominal(this)" placeholder="Minimal 10k" required>
+                <input type="hidden" name="jual" id="jual_clean" min="{{ batas_nominal_min_inc }}">
+            </div>
+
+            <div class="col-12">
+                <label class="form-label d-block">Via Penjualan</label>
+                <div class="btn-group w-100" role="group">
+                    <input type="radio" class="btn-check" name="via" id="viaMarketplace" value="marketplace" checked>
+                    <label class="btn btn-outline-success" for="viaMarketplace">Marketplace</label>
+
+                    <input type="radio" class="btn-check" name="via" id="viaChat" value="chat">
+                    <label class="btn btn-outline-success" for="viaChat">Chat/Langsung</label>
+                </div>
+            </div>
+
+            <div class="col-sm-6 col-12">
+                <label class="form-label">Tanggal</label>
+                <input type="date" class="form-control" id="tanggal_inc" name="tanggal"
+                       value="{{ current_date }}" min="{{ batas_tanggal_min }}" max="{{ batas_tanggal_max }}" required>
+            </div>
+
+            <div class="col-sm-6 col-12">
+                <label class="form-label">Catatan (Opsional)</label>
+                <input type="text" class="form-control" id="catatan_inc" name="catatan" placeholder="Penjualan produk X, dll.">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary mt-4 w-100 btn-lg">💰 SIMPAN PEMASUKAN</button>
+    </form>
+</div>
+
+<!-- CHART & LOG -->
+<div class="mt-5 text-center">
+    <button class="btn btn-info w-100" type="button" data-bs-toggle="collapse"
+            data-bs-target="#chartCollapse_inc">📊 Tampilkan Analisis & Log Data Pemasukan</button>
+</div>
+
+<div class="collapse mt-4" id="chartCollapse_inc">
+    <div class="card p-3 shadow-sm">
+        <ul class="nav nav-tabs">
+            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#mingguan-inc">Mingguan</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#bulanan-inc">Bulanan</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#log-inc">Log Akhir</button></li>
+        </ul>
+
+        <div class="tab-content p-2">
+            <div class="tab-pane fade show active" id="mingguan-inc"><canvas id="weeklyChartInc"></canvas></div>
+            <div class="tab-pane fade" id="bulanan-inc"><canvas id="monthlyChartInc"></canvas></div>
+            <div class="tab-pane fade" id="log-inc">
+                <h6 class="mt-3">10 Pemasukan Terakhir</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped">
+                        <thead>
+                        <tr>
+                            <th>Tgl</th>
+                            <th>Profit</th>
+                            <th>Modal</th>
+                            <th>Jual</th>
+                            <th>Via</th>
+                            <th>Catatan</th>
+                            <th>Aksi</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for pemasukan in pemasukan_list %}
+                            <tr>
+                                <td>{{ pemasukan.Tanggal | default('') }}</td>
+                                <td class="text-success fw-bold">Rp {{ "{:,.0f}".format(pemasukan.Profit) }}</td>
+                                <td>Rp {{ "{:,.0f}".format(pemasukan.Modal) }}</td>
+                                <td>Rp {{ "{:,.0f}".format(pemasukan.Jual) }}</td>
+                                <td>{{ pemasukan.Via.upper() }}</td>
+                                <td>{{ pemasukan.Catatan }}</td>
+                                <td>
+                                    <form method="POST" action="/delete"
+                                          onsubmit="return confirm('Yakin ingin menghapus pemasukan ini?')">
+                                        <input type="hidden" name="row_index" value="{{ pemasukan.row_index }}">
+                                        <input type="hidden" name="tab_type" value="pemasukan">
+                                        <button type="submit" class="btn btn-danger btn-sm p-1">🗑️</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
