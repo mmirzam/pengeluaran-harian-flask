@@ -13,8 +13,8 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'default_secret_key_sangat_t
 # --- KONFIGURASI GOOGLE SHEETS ---
 # Ambil kredensial JSON dari environment variable (Render)
 SERVICE_ACCOUNT_JSON = os.environ.get('SERVICE_ACCOUNT_JSON')
-SHEET_TITLE = os.environ.get('SHEET_TITLE', 'Aplikasi Jajan Harian') # Ganti dengan nama Sheet Anda
-WORKSHEET_NAME = os.environ.get('WORKSHEET_NAME', 'Pengeluaran') # Ganti dengan nama Worksheet Anda
+SHEET_TITLE = os.environ.get('SHEET_TITLE', 'Pengeluaran Harian Data') # Ganti dengan nama Sheet Anda
+WORKSHEET_NAME = os.environ.get('WORKSHEET_NAME', 'Sheet1') # Ganti dengan nama Worksheet Anda
 
 gc = None
 try:
@@ -25,7 +25,7 @@ try:
     else:
         # Opsi fallback (misalnya jika testing lokal dengan file credentials.json)
         # HANYA UNTUK TESTING LOKAL. Jangan gunakan ini di produksi.
-        print("PERINGATAN: Menggunakan file 'credentials.json' lokal. Pastikan SERVICE_ACCOUNT_JSON diset di Render.")
+        # print("PERINGATAN: Menggunakan file 'credentials.json' lokal. Pastikan SERVICE_ACCOUNT_JSON diset di Render.")
         gc = gspread.service_account(filename='credentials.json')
     
     sh = gc.open(SHEET_TITLE)
