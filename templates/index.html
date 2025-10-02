@@ -39,11 +39,16 @@
                 <div class="row g-3">
                     
                     <div class="col-12">
-                        <label for="nominal" class="form-label">Nominal (Rp)</label>
-                        <input type="number" class="form-control form-control-lg" id="nominal" name="nominal" 
-                               min="{{ batas_nominal_min }}" 
-                               max="{{ batas_nominal_max }}" 
+                        <label for="nominal_formatted" class="form-label">Nominal (Rp)</label>
+                        <!-- Input yang terlihat oleh pengguna, menggunakan type="text" untuk separator -->
+                        <input type="text" class="form-control form-control-lg" id="nominal_formatted" 
+                               oninput="formatNominal(this)"
                                placeholder="Pengeluaran (1k - 200k)..." required>
+
+                        <!-- Input tersembunyi untuk mengirim nilai angka murni ke Flask -->
+                        <input type="hidden" name="nominal" id="nominal_clean" 
+                               min="{{ batas_nominal_min }}" 
+                               max="{{ batas_nominal_max }}">
                     </div>
 
                     <div class="col-12">
