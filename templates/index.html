@@ -35,7 +35,8 @@
 
         <div class="card p-3 shadow-sm">
             <h5 class="card-title fs-5 mb-3">Input Pengeluaran Baru</h5>
-            <form method="POST" action="/">
+            <!-- DITAMBAHKAN: id="expenseForm" untuk JavaScript -->
+            <form method="POST" action="/" id="expenseForm"> 
                 <div class="row g-3">
                     
                     <div class="col-12">
@@ -136,6 +137,55 @@
 
         let weeklyChartInstance = null;
         let monthlyChartInstance = null;
+        
+        // --- FUNGSI SEPARATOR NOMINAL BARU ---
+        
+        function formatNominal(input) {
+            // 1. Ambil nilai, hapus semua karakter non-digit (termasuk titik/koma sebelumnya)
+            let value = input.value.replace(/\D/g, ''); 
+            
+            // 2. Batasi nilai antara min dan max yang dikirim dari Flask (Client-side validation)
+            const nominalCleanInput = document.getElementById('nominal_clean');
+            const min = parseInt(nominalCleanInput.min);
+            const max = parseInt(nominalCleanInput.max);
+            
+            let numericValue = parseInt(value) || 0;
+
+            if (numericValue > max) {
+                value = String(max);
+                numericValue = max;
+            } 
+            
+            // 3. Format dengan separator ribuan (menggunakan . sebagai separator)
+            let formattedValue = '';
+            if (value.length > 0) {
+                 // Menggunakan toLocaleString untuk memformat angka dengan separator (locale Indonesia)
+                 formattedValue = numericValue.toLocaleString('id-ID');
+            }
+            
+            // 4. Update input yang terlihat (formatted) dan input tersembunyi (clean)
+            input.value = formattedValue;
+            nominalCleanInput.value = numericValue;
+        }
+
+        // --- PENGIRIMAN FORM (Validasi Akhir Frontend) ---
+
+        document.getElementById('expenseForm').addEventListener('submit', function(event) {
+            const nominalCleanInput = document.getElementById('nominal_clean');
+            const nominalValue = parseInt(nominalCleanInput.value) || 0;
+            const min = parseInt(nominalCleanInput.min);
+            const max = parseInt(nominalCleanInput.max);
+
+            if (nominalValue < min || nominalValue > max) {
+                event.preventDefault(); // Mencegah pengiriman formulir
+                // Tampilkan pesan error custom
+                alert(`Nominal harus antara Rp ${min.toLocaleString('id-ID')} dan Rp ${max.toLocaleString('id-ID')}.`);
+            }
+            // Jika nominal kosong (value=0), Flask akan menangani validasi
+        });
+
+
+        // --- FUNGSI CHART ---
         
         // Fungsi untuk menginisialisasi chart
         function initializeCharts() {
