@@ -1,193 +1,250 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, flash
-from datetime import datetime, timedelta
-import gspread
-import pandas as pd
-import calendar
 import os
 import json
+import gspread
+import pandas as pd
+from datetime import datetime, timedelta
+from flask import Flask, render_template, request, redirect, url_for, flash
 
+# --- KONFIGURASI APLIKASI FLASK ---
 app = Flask(__name__)
-# Diperlukan untuk Flash Messages dan Sesi
-app.secret_key = 'kunci_rahasia_dan_acak_untuk_flask' 
+# Kunci rahasia untuk sesi dan flash messages (Ganti dengan string random yang kuat!)
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'default_secret_key_sangat_tidak_aman') 
 
-# --- Konfigurasi Google Sheets ---
-SERVICE_ACCOUNT_FILE = 'service-account-key.json' 
-SHEET_NAME = 'Pengeluaran Harian Data' 
+# --- KONFIGURASI GOOGLE SHEETS ---
+# Ambil kredensial JSON dari environment variable (Render)
+SERVICE_ACCOUNT_JSON = os.environ.get('SERVICE_ACCOUNT_JSON')
+SHEET_TITLE = os.environ.get('SHEET_TITLE', 'Aplikasi Jajan Harian') # Ganti dengan nama Sheet Anda
+WORKSHEET_NAME = os.environ.get('WORKSHEET_NAME', 'Pengeluaran') # Ganti dengan nama Worksheet Anda
 
-def get_gspread_client():
-    """Mendapatkan klien gspread menggunakan kredensial JSON (lokal atau dari ENV)."""
-    json_creds = os.environ.get('SERVICE_ACCOUNT_JSON')
-    
-    if json_creds:
-        try:
-            # Mengambil kredensial dari environment variable (untuk deployment seperti Render)
-            cleaned_creds = json_creds.strip().replace('\\\\n', '\\n') 
-            
-            creds = json.loads(cleaned_creds)
-            gc = gspread.service_account_from_dict(creds)
-        except Exception as e:
-            print(f"ERROR: Failed to load JSON from ENV: {e}")
-            flash(f'🚨 Koneksi Google Sheets GAGAL! (Gagal load kunci dari ENV: {e})', 'danger')
-            raise 
+gc = None
+try:
+    if SERVICE_ACCOUNT_JSON:
+        # Menggunakan kredensial dari environment variable (Render)
+        creds = json.loads(SERVICE_ACCOUNT_JSON)
+        gc = gspread.service_account_from_dict(creds)
     else:
-        try:
-            # Menggunakan file lokal (untuk local development)
-            with open(SERVICE_ACCOUNT_FILE, 'r') as f:
-                creds = json.load(f)
-            gc = gspread.service_account_from_dict(creds)
-        except FileNotFoundError:
-            print(f"ERROR: Credentials file {SERVICE_ACCOUNT_FILE} not found.")
-            raise
-        except Exception as e:
-            print(f"ERROR: Failed to load/read local JSON credentials: {e}")
-            raise
+        # Opsi fallback (misalnya jika testing lokal dengan file credentials.json)
+        # HANYA UNTUK TESTING LOKAL. Jangan gunakan ini di produksi.
+        print("PERINGATAN: Menggunakan file 'credentials.json' lokal. Pastikan SERVICE_ACCOUNT_JSON diset di Render.")
+        gc = gspread.service_account(filename='credentials.json')
     
-    return gc
+    sh = gc.open(SHEET_TITLE)
+    worksheet = sh.worksheet(WORKSHEET_NAME)
 
-def get_data_from_sheet():
-    """Mengambil semua data dari sheet dan mengkonversinya ke DataFrame."""
+except Exception as e:
+    print(f"ERROR: Gagal terhubung ke Google Sheets: {e}")
+    worksheet = None
+
+# --- FUNGSI UTILITY ---
+
+def get_data_dataframe():
+    """Mengambil semua data dari Sheets dan mengembalikannya sebagai Pandas DataFrame."""
+    if not worksheet:
+        return pd.DataFrame() # Mengembalikan DataFrame kosong jika koneksi gagal
     try:
-        gc = get_gspread_client()
-        spreadsheet = gc.open(SHEET_NAME)
-        worksheet = spreadsheet.sheet1 
+        # Mengambil semua nilai sebagai list of lists
+        data = worksheet.get_all_values()
         
-        records = worksheet.get_all_records()
-        df = pd.DataFrame(records)
+        # Jika data kosong atau hanya header
+        if not data or len(data) <= 1:
+            # Sesuaikan headers dengan skema yang diharapkan (misalnya tanpa Kategori jika itu opsional)
+            return pd.DataFrame(columns=['Tanggal', 'Metode', 'Nominal', 'Kategori', 'Catatan'])
+
+        # Baris pertama adalah header
+        headers = data[0]
+        rows = data[1:]
         
-        if df.empty:
-            return pd.DataFrame({'Tanggal': [], 'Metode': [], 'Nominal': [], 'Catatan': []})
-            
-        df = df.copy() 
+        df = pd.DataFrame(rows, columns=headers)
+        
+        # Konversi tipe data
         df['Tanggal'] = pd.to_datetime(df['Tanggal'], errors='coerce')
-        df['Nominal'] = pd.to_numeric(df['Nominal'], errors='coerce').fillna(0).astype(int) 
-        df = df.dropna(subset=['Tanggal'])
+        # Ganti semua nilai non-numerik di kolom Nominal menjadi 0 sebelum konversi
+        df['Nominal'] = pd.to_numeric(df['Nominal'], errors='coerce').fillna(0).astype(int)
+
+        # Menambahkan indeks baris Sheets (row index 2 adalah baris data pertama)
+        df['row_index'] = range(2, len(df) + 2)
         
         return df.sort_values(by='Tanggal', ascending=False)
+    
     except Exception as e:
-        print(f"ERROR: Failed to connect/read Google Sheets: {e}")
-        flash(f'🚨 Koneksi Google Sheets GAGAL! ({e})', 'danger') 
-        return pd.DataFrame() 
+        print(f"ERROR saat mengambil data dari Sheets: {e}")
+        return pd.DataFrame()
 
-# --- FUNGSI CHART ---
+def calculate_charts(df):
+    """Menghitung data untuk chart mingguan dan bulanan."""
+    if df.empty:
+        return [], [], [], []
 
-def get_weekly_data(df):
-    """Menghitung pengeluaran harian untuk 7 hari terakhir (dari DataFrame)."""
-    if df.empty: return [0]*7, ["" for _ in range(7)]
+    # --- Chart Mingguan ---
     today = datetime.now().date()
-    seven_days_ago = today - timedelta(days=6)
-    df_filtered = df[(df['Tanggal'].dt.date >= seven_days_ago)].copy()
-    daily_expense = df_filtered.groupby(df_filtered['Tanggal'].dt.date)['Nominal'].sum()
-    dates = [seven_days_ago + timedelta(days=i) for i in range(7)]
-    labels = [d.strftime('%a, %d/%m') for d in dates]
-    chart_data = [int(daily_expense.get(d, 0)) for d in dates] 
-    return chart_data, labels
+    start_of_week = today - timedelta(days=today.weekday())
+    
+    # Filter data 7 hari terakhir (Minggu sampai Hari Ini)
+    weekly_data = df[df['Tanggal'].dt.date >= start_of_week].copy()
+    
+    # Agregasi pengeluaran per hari
+    weekly_summary = weekly_data.groupby(weekly_data['Tanggal'].dt.strftime('%a'))['Nominal'].sum().reindex(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], fill_value=0)
+    
+    weekly_labels = weekly_summary.index.tolist()
+    weekly_data_values = weekly_summary.values.tolist()
 
-def get_monthly_data(df):
-    """Menghitung pengeluaran bulanan untuk 6 bulan terakhir (dari DataFrame)."""
-    if df.empty: return [0]*6, ["" for _ in range(6)]
-    df = df.copy() 
-    df['MonthYear'] = df['Tanggal'].dt.to_period('M')
-    monthly_expense = df.groupby('MonthYear')['Nominal'].sum()
-    labels = []
-    chart_data = []
-    today_period = pd.Period(datetime.now(), freq='M')
-    for i in range(5, -1, -1):
-        target_period = today_period - i
-        month_name = calendar.month_name[target_period.month]
-        label = f"{month_name} {target_period.year}"
-        labels.append(label)
-        data = monthly_expense.get(target_period, 0)
-        chart_data.append(int(data)) 
-    return chart_data, labels
+    # --- Chart Bulanan ---
+    df['BulanTahun'] = df['Tanggal'].dt.to_period('M')
+    monthly_summary = df.groupby('BulanTahun')['Nominal'].sum().sort_index()
+    
+    monthly_labels = [period.strftime('%b %y') for period in monthly_summary.index]
+    monthly_data_values = monthly_summary.values.tolist()
+    
+    return weekly_labels, weekly_data_values, monthly_labels, monthly_data_values
 
-# --- ROUTING ---
+def calculate_totals(df):
+    """Menghitung total pengeluaran harian dan mingguan."""
+    if df.empty:
+        return 0, 0
+
+    today = datetime.now().date()
+    start_of_week = today - timedelta(days=today.weekday())
+    
+    # Total Harian
+    df_today = df[df['Tanggal'].dt.date == today]
+    total_harian = df_today['Nominal'].sum()
+
+    # Total Mingguan (Minggu sampai Hari Ini)
+    df_week = df[df['Tanggal'].dt.date >= start_of_week]
+    total_mingguan = df_week['Nominal'].sum()
+    
+    return total_harian, total_mingguan
+
+# --- RUTE FLASK ---
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    df = get_data_from_sheet()
-
+    df = get_data_dataframe()
+    
     if request.method == 'POST':
-        try:
-            tanggal_str = request.form.get('tanggal')
-            metode = request.form.get('metode')
-            nominal_str = request.form.get('nominal')
-            catatan = request.form.get('catatan')
-            
-            # --- VALIDASI NOMINAL & TANGGAL (BACKEND - LAPISAN KEAMANAN) ---
-            
-            # 1. Validasi Nominal (1000 - 200000)
-            if not nominal_str:
-                flash('⚠️ Nominal tidak boleh kosong!', 'warning')
-                return redirect(url_for('index'))
-                
-            nominal = int(nominal_str)
-            if not (1000 <= nominal <= 200000):
-                flash('🚨 Nominal harus antara Rp 1.000 hingga Rp 200.000.', 'danger')
-                return redirect(url_for('index'))
+        # Mengambil data formulir, nominal diambil dari input hidden (nominal_clean)
+        tanggal_str = request.form.get('tanggal')
+        metode = request.form.get('metode')
+        
+        # MENGHAPUS: Kategori (atau set default kosong)
+        # Jika kolom Kategori masih ada di Sheets, kita kirim string kosong
+        kategori = request.form.get('kategori', '') 
+        
+        nominal_str = request.form.get('nominal') # Ini adalah nilai "clean" dari input hidden
+        catatan = request.form.get('catatan', '')
 
-            # 2. Validasi Batas Tanggal (Mundur 2 hari, Maju 1 hari)
+        # 1. Validasi Input Dasar (Kategori TIDAK lagi wajib)
+        if not (tanggal_str and metode and nominal_str):
+             flash('⚠️ Semua field wajib (Tanggal, Nominal, Metode) harus diisi.', 'warning')
+             return redirect(url_for('index'))
+
+        try:
+            nominal = int(nominal_str)
+        except ValueError:
+            flash('🚨 Nominal harus berupa angka.', 'danger')
+            return redirect(url_for('index'))
+
+        # 2. Validasi Batas Nominal (1000 - 200000)
+        if not (1000 <= nominal <= 200000):
+            flash('🚨 Nominal harus antara Rp 1.000 hingga Rp 200.000.', 'danger')
+            return redirect(url_for('index'))
+            
+        # 3. Validasi Batas Tanggal (Mundur 2 hari, Maju 1 hari)
+        try:
             tanggal_input = datetime.strptime(tanggal_str, '%Y-%m-%d').date()
             today = datetime.now().date()
+            
             batas_bawah = today - timedelta(days=2)
             batas_atas = today + timedelta(days=1)
             
-            # Jika validasi tanggal GAGAL di backend, berikan flash message
             if not (batas_bawah <= tanggal_input <= batas_atas):
-                tgl_bawah_fmt = batas_bawah.strftime('%d/%m/%Y')
-                tgl_atas_fmt = batas_atas.strftime('%d/%m/%Y')
-                flash(f'🗓️ Tanggal tidak valid! Harus antara {tgl_bawah_fmt} dan {tgl_atas_fmt}.', 'danger')
+                # Validasi backend dipertahankan
                 return redirect(url_for('index'))
-            
-            # --- END VALIDASI BARU ---
-
-            new_row = [tanggal_str, metode, nominal, catatan]
-            
-            # Tulis ke Google Sheets
-            gc = get_gspread_client()
-            spreadsheet = gc.open(SHEET_NAME)
-            worksheet = spreadsheet.sheet1
-            worksheet.append_row(new_row, value_input_option='USER_ENTERED')
-            
-            flash(f'✅ Pengeluaran Rp {nominal:,.0f} berhasil dicatat!', 'success')
-            return redirect(url_for('index'))
-        
+                
         except ValueError:
-            flash('🚨 Nominal atau Tanggal tidak valid.', 'danger')
+            flash('🚨 Format tanggal tidak valid.', 'danger')
             return redirect(url_for('index'))
             
-        except Exception as e:
-            print(f"Error saat menyimpan data: {e}")
-            flash(f'❌ Gagal menyimpan data: {e}', 'danger')
-            return redirect(url_for('index'))
+        # 4. Menyimpan Data ke Google Sheets
+        if worksheet:
+            try:
+                data_row = [
+                    tanggal_str,
+                    metode.lower(),
+                    nominal,
+                    kategori if kategori else '', # Kategori kosong dikirim jika tidak ada di form
+                    catatan
+                ]
+                worksheet.append_row(data_row)
+                flash('✅ Pengeluaran berhasil dicatat!', 'success')
+            except Exception as e:
+                flash(f'❌ Gagal menyimpan data ke Sheets. Cek koneksi API dan izin akses. Error: {e}', 'danger')
+        else:
+             flash('❌ Gagal menyimpan data: Koneksi ke Google Sheets tidak tersedia.', 'danger')
+        
+        return redirect(url_for('index'))
 
-    # Siapkan data untuk chart dan display
-    chart_data_mingguan, chart_labels_mingguan = get_weekly_data(df)
-    chart_data_bulanan, chart_labels_bulanan = get_monthly_data(df)
+    # --- Bagian GET Request ---
     
-    if not df.empty:
-        df_display = df.head(10).copy()
-        if pd.api.types.is_datetime64_any_dtype(df_display['Tanggal']):
-            df_display['Tanggal'] = df_display['Tanggal'].dt.strftime('%Y-%m-%d')
-        pengeluaran_list = df_display.to_dict('records')
-    else:
-        pengeluaran_list = []
+    # Hitung data untuk chart dan total
+    weekly_labels, weekly_data, monthly_labels, monthly_data = calculate_charts(df)
+    total_harian, total_mingguan = calculate_totals(df)
 
-    # Kita mengirim batas MIN dan MAX ke template
-    batas_atas_str = (datetime.now().date() + timedelta(days=1)).strftime('%Y-%m-%d') # T + 1 hari
-    batas_bawah_str = (datetime.now().date() - timedelta(days=2)).strftime('%Y-%m-%d') # T - 2 hari
+    # Ambil 10 data terakhir untuk log
+    pengeluaran_list = df.head(10).to_dict('records')
+
+    # Siapkan data untuk template
+    current_date = datetime.now().strftime('%Y-%m-%d')
+    
+    # Batas tanggal
+    batas_atas_str = (datetime.now().date() + timedelta(days=1)).strftime('%Y-%m-%d')
+    batas_bawah_str = (datetime.now().date() - timedelta(days=2)).strftime('%Y-%m-%d')
 
     return render_template('index.html', 
+                           current_date=current_date,
                            pengeluaran_list=pengeluaran_list,
-                           chart_data_mingguan=chart_data_mingguan,
-                           chart_labels_mingguan=chart_labels_mingguan,
-                           chart_data_bulanan=chart_data_bulanan,
-                           chart_labels_bulanan=chart_labels_bulanan,
-                           current_date=datetime.now().strftime('%Y-%m-%d'),
+                           chart_labels_mingguan=weekly_labels,
+                           chart_data_mingguan=weekly_data,
+                           chart_labels_bulanan=monthly_labels,
+                           chart_data_bulanan=monthly_data,
                            batas_nominal_max=200000,
                            batas_nominal_min=1000,
                            batas_tanggal_max=batas_atas_str,
-                           batas_tanggal_min=batas_bawah_str # VARIABEL BARU
-                           )
+                           batas_tanggal_min=batas_bawah_str,
+                           total_harian=total_harian,
+                           total_mingguan=total_mingguan)
+
+
+@app.route('/delete', methods=['POST'])
+def delete_entry():
+    """Rute untuk menghapus baris data berdasarkan row_index."""
+    row_index_str = request.form.get('row_index')
+
+    if not worksheet or not row_index_str:
+        flash('❌ Gagal menghapus data: Koneksi Sheets atau indeks tidak ditemukan.', 'danger')
+        return redirect(url_for('index'))
+    
+    try:
+        # row_index adalah nomor baris di Google Sheets
+        row_index = int(row_index_str)
+        
+        # Validasi sederhana agar tidak menghapus header atau row yang tidak wajar
+        if row_index < 2:
+            flash('🚨 Indeks baris tidak valid untuk dihapus.', 'warning')
+            return redirect(url_for('index'))
+        
+        # Hapus baris dari Sheets
+        worksheet.delete_rows(row_index)
+        flash('🗑️ Pengeluaran berhasil dihapus.', 'info')
+        
+    except ValueError:
+        flash('🚨 Indeks baris tidak valid (harus angka).', 'danger')
+    except Exception as e:
+        flash(f'❌ Terjadi kesalahan saat menghapus data: {e}', 'danger')
+
+    return redirect(url_for('index'))
+
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Pastikan untuk mengganti '0.0.0.0' jika Anda menjalankan di lokal dan mengalami isu
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
