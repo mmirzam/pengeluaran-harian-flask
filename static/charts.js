@@ -124,8 +124,8 @@ function initializeCharts() {
                     legend: { display: false },
                     tooltip: { enabled: false },
                     datalabels: {
-                        align: 'top',
-                        anchor: 'end',
+                        align: 'bottom',
+                        anchor: 'start',
                         formatter: (value) => value.toLocaleString('id-ID'),
                         font: { weight: 'bold', size: 11 }
                     }
@@ -191,8 +191,8 @@ function initializeCharts() {
                     legend: { display: false },
                     tooltip: { enabled: false },
                     datalabels: {
-                        align: 'top',
-                        anchor: 'end',
+                        align: 'bottom',
+                        anchor: 'start',
                         formatter: (value) => value.toLocaleString('id-ID'),
                         font: { weight: 'bold', size: 11 }
                     }

@@ -100,9 +100,20 @@ def calculate_totals(df):
     today = datetime.now().date()
     df['date_only'] = safe_to_date(df['Tanggal']) 
     start_of_week = today - timedelta(days=today.weekday())
+
+     # Total hari ini
     total_harian = int(df[df['date_only'] == today]['Nominal'].sum())
-    total_mingguan = int(df[df['date_only'] >= start_of_week]['Nominal'].sum())
-    return total_harian, total_mingguan
+
+    # Total bulan ini (bukan minggu)
+    total_bulanan = int(
+        df[
+            (df['Tanggal'].dt.month == today.month) &
+            (df['Tanggal'].dt.year == today.year)
+        ]['Nominal'].sum()
+    )
+
+    #total_bulanan = int(df[df['date_only'] >= start_of_week]['Nominal'].sum())
+    return total_harian, total_bulanan
 
 
 # --- ROUTES ---
@@ -157,7 +168,7 @@ def pengeluaran_index():
         return redirect(url_for('pengeluaran_index'))
 
     weekly_labels, weekly_data, monthly_labels, monthly_data = calculate_charts(df)
-    total_harian, total_mingguan = calculate_totals(df)
+    total_harian, total_bulanan = calculate_totals(df)
     pengeluaran_list = df.head(10).to_dict('records')
     for item in pengeluaran_list:
         if isinstance(item.get('Tanggal'), pd.Timestamp):
@@ -182,9 +193,9 @@ def pengeluaran_index():
                            batas_tanggal_max=batas_atas_str,
                            batas_tanggal_min=batas_bawah_str,
                            total_harian=total_harian,
-                           total_mingguan=total_mingguan,
+                           total_bulanan=total_bulanan,
                            total_harian_profit=0,
-                           total_mingguan_profit=0,
+                           total_bulanan_profit=0,
                            chart_labels_mingguan_inc=[],
                            chart_data_mingguan_inc=[],
                            chart_labels_bulanan_inc=[],
@@ -238,7 +249,7 @@ def pemasukan_index():
         return redirect(url_for('pemasukan_index'))
 
     weekly_labels, weekly_data, monthly_labels, monthly_data = calculate_charts(df)
-    total_harian_profit, total_mingguan_profit = calculate_totals(df)
+    total_harian_profit, total_bulanan_profit = calculate_totals(df)
     pemasukan_list = df.head(10).to_dict('records')
     for item in pemasukan_list:
         if isinstance(item.get('Tanggal'), pd.Timestamp):
@@ -266,9 +277,9 @@ def pemasukan_index():
                            batas_tanggal_max=batas_atas_str,
                            batas_tanggal_min=batas_bawah_str,
                            total_harian_profit=total_harian_profit,
-                           total_mingguan_profit=total_mingguan_profit,
+                           total_bulanan_profit=total_bulanan_profit,
                            total_harian=0,
-                           total_mingguan=0,
+                           total_bulanan=0,
                            chart_labels_mingguan=[],
                            chart_data_mingguan=[],
                            chart_labels_bulanan=[],
