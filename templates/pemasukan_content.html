@@ -16,9 +16,7 @@
 <!-- FORM INPUT PEMASUKAN -->
 <div class="card p-3 shadow-sm">
     <h5 class="card-title fs-5 mb-3">Input Pemasukan Baru</h5>
-    <form method="POST" action="{{ url_for('tambah') }}">
-        <input type="hidden" name="jenis" value="pemasukan">
-
+    <form method="POST" action="{{ url_for('pemasukan_index') }}" id="incomeForm">
         <div class="row g-3">
             <div class="col-sm-6 col-12">
                 <label class="form-label">Modal (Rp)</label>
@@ -35,7 +33,7 @@
             </div>
 
             <div class="col-12">
-                <label class="form-label d-block">Via</label>
+                <label class="form-label d-block">Via Penjualan</label>
                 <div class="btn-group w-100" role="group">
                     <input type="radio" class="btn-check" name="via" id="viaMarketplace" value="marketplace" checked>
                     <label class="btn btn-outline-success" for="viaMarketplace">Marketplace</label>

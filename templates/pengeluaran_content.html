@@ -16,13 +16,12 @@
 <!-- FORM INPUT PENGELUARAN -->
 <div class="card p-3 shadow-sm">
     <h5 class="card-title fs-5 mb-3">Input Pengeluaran Baru</h5>
-    <form method="POST" action="{{ url_for('tambah') }}">
-        <input type="hidden" name="jenis" value="pengeluaran">
+    <form method="POST" action="{{ url_for('pengeluaran_index') }}" id="expenseForm">
         <div class="row g-3">
             <div class="col-12">
                 <label for="nominal_formatted" class="form-label">Nominal (Rp)</label>
                 <input type="text" class="form-control form-control-lg nominal-input" id="nominal_formatted"
-                       oninput="formatNominal(this)" placeholder="Pengeluaran (1k - 200k)..." required>
+                       oninput="formatNominal(this)" placeholder="1k - 500k" required>
                 <input type="hidden" name="nominal" id="nominal_clean"
                        min="{{ batas_nominal_min }}" max="{{ batas_nominal_max }}">
             </div>
@@ -31,7 +30,7 @@
                 <label class="form-label d-block">Metode Pembayaran</label>
                 <div class="btn-group w-100" role="group">
                     <input type="radio" class="btn-check" name="metode" id="metodeQris" value="qris" checked>
-                    <label class="btn btn-outline-danger" for="metodeQris">MBANKING</label>
+                    <label class="btn btn-outline-danger" for="metodeQris">m-Banking</label>
 
                     <input type="radio" class="btn-check" name="metode" id="metodeCash" value="cash">
                     <label class="btn btn-outline-danger" for="metodeCash">Cash</label>
