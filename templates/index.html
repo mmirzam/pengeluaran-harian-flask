@@ -16,7 +16,12 @@
 </head>
 <body>
     <div class="container mt-4 mb-5">
-        <h1 class="mb-4 text-center fs-3">Laporan MMM 🚀</h1>
+        <h1 class="mb-4 text-center fs-3">Laporan Kamu 🚀</h1>
+
+        <div class="text-center mb-3">
+            <span class="fw-semibold">👤 Selamat datang, {{ session['user']|capitalize }} |</span>
+            <a href="{{ url_for('logout') }}" class="p-0 ms-2 border-0 bg-transparent" title="Keluar">🔒</a>
+        </div>
 
         <!-- Pesan Flash -->
         {% with messages = get_flashed_messages(with_categories=true) %}

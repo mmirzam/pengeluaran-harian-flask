@@ -16,7 +16,8 @@
 <!-- FORM INPUT PENGELUARAN -->
 <div class="card p-3 shadow-sm">
     <h5 class="card-title fs-5 mb-3">Input Pengeluaran Baru</h5>
-    <form method="POST" action="{{ url_for('pengeluaran_index') }}" id="expenseForm">
+    <form method="POST" action="{{ url_for('tambah') }}">
+        <input type="hidden" name="jenis" value="pengeluaran">
         <div class="row g-3">
             <div class="col-12">
                 <label for="nominal_formatted" class="form-label">Nominal (Rp)</label>
@@ -30,7 +31,7 @@
                 <label class="form-label d-block">Metode Pembayaran</label>
                 <div class="btn-group w-100" role="group">
                     <input type="radio" class="btn-check" name="metode" id="metodeQris" value="qris" checked>
-                    <label class="btn btn-outline-danger" for="metodeQris">QRIS</label>
+                    <label class="btn btn-outline-danger" for="metodeQris">MBANKING</label>
 
                     <input type="radio" class="btn-check" name="metode" id="metodeCash" value="cash">
                     <label class="btn btn-outline-danger" for="metodeCash">Cash</label>
@@ -49,7 +50,7 @@
                        placeholder="Makan siang, bensin, dll.">
             </div>
         </div>
-        <button type="submit" class="btn btn-success mt-4 w-100 btn-lg">✅ SIMPAN PENGELUARAN</button>
+        <button type="submit" class="btn btn-danger mt-4 w-100 btn-lg">✅ SIMPAN PENGELUARAN</button>
     </form>
 </div>
 

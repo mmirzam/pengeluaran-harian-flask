@@ -3,11 +3,21 @@ import json
 import gspread
 import pandas as pd
 from datetime import datetime, timedelta
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 
 # --- KONFIGURASI APLIKASI FLASK ---
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'default_secret_key_sangat_tidak_aman') 
+
+# --- PIN AKSES APLIKASI ---
+#APP_ACCESS_PIN = '1121'
+
+@app.before_request
+def check_auth():
+    # Halaman yang boleh diakses tanpa login
+    allowed_routes = ['auth', 'static']
+    if not session.get('authenticated') and request.endpoint not in allowed_routes:
+        return redirect(url_for('auth'))
 
 # --- KONFIGURASI GOOGLE SHEETS ---
 SERVICE_ACCOUNT_JSON = os.environ.get('SERVICE_ACCOUNT_JSON')
@@ -117,15 +127,58 @@ def calculate_totals(df):
 
 
 # --- ROUTES ---
+@app.route('/auth', methods=['GET', 'POST'])
+def auth():
+    if request.method == 'POST':
+        username = request.form.get('username').strip().lower()
+        kode = request.form.get('kode')
+
+        # Baca users.json
+        with open('data/users.json', 'r') as f:
+            users = json.load(f)
+
+        # Normalisasi semua key di file JSON jadi lowercase
+        normalized_users = {u.lower(): info for u, info in users.items()}
+        
+        if username in normalized_users and normalized_users[username]['pin'] == kode:
+            session.permanent = True
+            session['authenticated'] = True
+            session['user'] = username
+            #flash(f'Hola, {username} 👋', 'success')
+            return redirect(url_for('pengeluaran_index'))
+        else:
+            flash('❌ Eits, akses ditolak.', 'danger')
+
+        '''
+        if kode == APP_ACCESS_PIN:
+            session['authenticated'] = True
+            flash('✅ Akses diterima.', 'success')
+            return redirect(url_for('pengeluaran_index'))
+        else:
+            flash('❌ Eits, akses ditolak.', 'danger')
+        '''
+    return render_template('auth.html')
+
+
+@app.route('/logout')
+def logout():
+    session.pop('authenticated', None)
+    session.pop('user', None)
+    flash('🔒 Kamu telah keluar.', 'info')
+    return redirect(url_for('auth'))
 
 @app.route('/')
 def home():
+    if not session.get('authenticated'):
+        return redirect(url_for('auth'))
     # Default redirect ke halaman pengeluaran
     return redirect(url_for('pengeluaran_index'))
 
-@app.route('/pengeluaran', methods=['GET', 'POST'])
+@app.route('/pengeluaran')
 def pengeluaran_index():
     df = get_data_dataframe(worksheet_expense)
+    if not df.empty:
+        df = df[df["User"] == session["user"]]
     
     if request.method == 'POST':
         tanggal_str = request.form.get('tanggal')
@@ -194,6 +247,7 @@ def pengeluaran_index():
                            batas_tanggal_min=batas_bawah_str,
                            total_harian=total_harian,
                            total_bulanan=total_bulanan,
+                           df=df.to_dict(orient='records'),
                            total_harian_profit=0,
                            total_bulanan_profit=0,
                            chart_labels_mingguan_inc=[],
@@ -202,9 +256,11 @@ def pengeluaran_index():
                            chart_data_bulanan_inc=[],
                            batas_nominal_min_inc=10000)
 
-@app.route('/pemasukan', methods=['GET', 'POST'])
+@app.route('/pemasukan')
 def pemasukan_index():
     df = get_data_dataframe(worksheet_income)
+    if not df.empty:
+        df = df[df["User"] == session["user"]]
     
     if request.method == 'POST':
         tanggal_str = request.form.get('tanggal')
@@ -280,12 +336,37 @@ def pemasukan_index():
                            total_bulanan_profit=total_bulanan_profit,
                            total_harian=0,
                            total_bulanan=0,
+                           df=df.to_dict(orient='records'),
                            chart_labels_mingguan=[],
                            chart_data_mingguan=[],
                            chart_labels_bulanan=[],
                            chart_data_bulanan=[],
                            batas_nominal_max=200000,
                            batas_nominal_min=1000)
+
+# --- Route tambah data ---
+@app.route('/tambah', methods=['POST'])
+def tambah():
+    jenis = request.form.get('jenis')
+    tanggal = request.form.get('tanggal')
+    metode = request.form.get('metode')
+    nominal = request.form.get('nominal')
+    catatan = request.form.get('catatan')
+
+    if not all([tanggal, nominal]):
+        flash('Tanggal dan nominal wajib diisi!', 'danger')
+        return redirect(request.referrer)
+
+    row = [session["user"], tanggal, metode, nominal, catatan]
+
+    if jenis == 'pengeluaran':
+        worksheet_expense.append_row(row)
+        flash('Pengeluaran berhasil ditambahkan!', 'success')
+        return redirect(url_for('pengeluaran_index'))
+    else:
+        worksheet_income.append_row(row)
+        flash('Pemasukan berhasil ditambahkan!', 'success')
+        return redirect(url_for('pemasukan_index'))
 
 @app.route('/delete', methods=['POST'])
 def delete_entry():
