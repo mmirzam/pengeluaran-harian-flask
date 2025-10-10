@@ -1,5 +1,5 @@
 <!-- RINGKASAN PENGELUARAN -->
-<div class="card p-3 shadow-sm mb-4 bg-light">
+<!--div class="card p-3 shadow-sm mb-4 bg-light">
     <h5 class="card-title fs-5 mb-3 text-center">Ringkasan Pengeluaran</h5>
     <div class="row text-center g-2">
         <div class="col-6">
@@ -11,6 +11,44 @@
             <h4 class="text-danger">Rp {{ "{:,.0f}".format(total_bulanan) }}</h4>
         </div>
     </div>
+</!--div>
+
+<!-- RINGKASAN PENGELUARAN -->
+<div class="card p-3 shadow-sm mb-4 bg-light">
+  <h5 class="card-title fs-5 mb-3 text-center">Ringkasan Pengeluaran</h5>
+
+  <!-- Responsive grid: 2 kolom di layar kecil, 3 di medium ke atas -->
+  <div class="row row-cols-2 row-cols-md-3 text-center g-3 justify-content-center">
+
+    <!-- Hari Ini -->
+    <div class="col">
+      <p class="mb-0 text-muted small">Hari Ini</p>
+      <h5 class="text-danger text-wrap mb-0">Rp {{ "{:,.0f}".format(total_harian) }}</h5>
+    </div>
+
+    <!-- Bulan Ini -->
+    <div class="col">
+      <p class="mb-0 text-muted small">Bulan Ini</p>
+      <h5 class="text-danger text-wrap mb-0">Rp {{ "{:,.0f}".format(total_bulanan) }}</h5>
+    </div>
+
+    <!-- Budget -->
+    <div class="col d-flex flex-column align-items-center">
+      <p class="mb-0 text-muted small">🎯 Budget</p>
+      {% if budget %}
+        {% set sisa = budget - total_bulanan %}
+        <h5 class="{% if sisa < 0 %}text-danger fw-bold{% else %}text-success fw-semibold{% endif %} text-wrap mb-0">
+          Rp {{ "{:,.0f}".format(budget) }}
+        </h5>
+        <p class="small mb-0 {% if sisa < 0 %}text-danger{% else %}text-muted{% endif %}">
+          (Sisa {{ "{:,.0f}".format(sisa) }})
+        </p>
+      {% else %}
+        <a href="{{ url_for('budget_page') }}" class="text-primary small d-block">+ Atur Budget</a>
+      {% endif %}
+    </div>
+
+  </div>
 </div>
 
 <!-- FORM INPUT PENGELUARAN -->

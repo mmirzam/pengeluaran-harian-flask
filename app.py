@@ -21,7 +21,7 @@ def check_auth():
 
 # --- KONFIGURASI GOOGLE SHEETS ---
 SERVICE_ACCOUNT_JSON = os.environ.get('SERVICE_ACCOUNT_JSON')
-SHEET_TITLE = os.environ.get('SHEET_TITLE', 'Aplikasi Jajan Harian')
+SHEET_TITLE = os.environ.get('SHEET_TITLE', 'Laporan Harian')
 WORKSHEET_EXPENSE = os.environ.get('WORKSHEET_EXPENSE', 'Pengeluaran')
 WORKSHEET_INCOME = os.environ.get('WORKSHEET_INCOME', 'Pemasukan')
 
@@ -139,6 +139,36 @@ def auth():
             flash('❌ Eits, akses ditolak.', 'danger')
     return render_template('auth.html')
 
+@app.route('/budget', methods=['GET', 'POST'])
+def budget_page():
+    today = datetime.now()
+
+    # Pastikan sheet Budget ada
+    try:
+        ws_budget = sh.worksheet("Budget")
+    except:
+        """ws_budget = sh.add_worksheet(title="Budget", rows=100, cols=3)
+        ws_budget.append_row(["Bulan", "Tahun", "Nominal"])"""
+
+    if request.method == 'POST':
+        nominal_str = request.form.get('nominal')
+        if not nominal_str:
+            flash('⚠️ Nominal wajib diisi.', 'warning')
+            return redirect(url_for('budget_page'))
+
+        try:
+            nominal = int(nominal_str)
+        except ValueError:
+            flash('🚨 Nominal tidak valid.', 'danger')
+            return redirect(url_for('budget_page'))
+
+        bulan = today.month
+        tahun = today.year
+        ws_budget.append_row([bulan, tahun, nominal])
+        flash('✅ Budget bulan ini berhasil disimpan!', 'success')
+        return redirect(url_for('pengeluaran_index'))
+
+    return render_template('budget.html')
 
 @app.route('/logout')
 def logout():
@@ -199,6 +229,21 @@ def pengeluaran_index():
 
     weekly_labels, weekly_data, monthly_labels, monthly_data = calculate_charts(df)
     total_harian, total_bulanan = calculate_totals(df)
+
+    budget = None
+    try:
+        ws_budget = sh.worksheet("Budget")
+        data = ws_budget.get_all_records()
+        df_budget = pd.DataFrame(data)
+        df_budget = df_budget[
+            (df_budget["Bulan"] == datetime.now().month) &
+            (df_budget["Tahun"] == datetime.now().year)
+        ]
+        if not df_budget.empty:
+            budget = int(df_budget["Nominal"].iloc[-1])
+    except Exception as e:
+        print(f"Gagal ambil data budget: {e}")
+
     pengeluaran_list = df.head(10).to_dict('records')
     for item in pengeluaran_list:
         if isinstance(item.get('Tanggal'), pd.Timestamp):
@@ -230,6 +275,7 @@ def pengeluaran_index():
                            chart_data_mingguan_inc=[],
                            chart_labels_bulanan_inc=[],
                            chart_data_bulanan_inc=[],
+                           budget=budget,
                            batas_nominal_min_inc=10000)
 
 @app.route('/pemasukan', methods=['GET', 'POST'])
